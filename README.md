@@ -80,6 +80,13 @@ captures a full-page screenshot (at a fixed 1280×800 viewport) as a **baseline*
 baseline with [pixelmatch](https://github.com/mapbox/pixelmatch); if more than 1% of pixels change
 it writes a diff image and reports a UI finding — catching unintended visual changes between runs.
 
+### Flaky test detection
+
+When the agent runs generated specs via `run_tests`, the wizard passes Playwright `--retries`
+(default 2) so a spec that fails and then **passes on a retry** is reported as *flaky*. The tool
+returns `{ passed, failed, flaky, skipped }`; when `flaky > 0` the agent raises a `PROCESS/minor`
+finding naming the unstable spec, so intermittent failures surface instead of hiding.
+
 ### Export reports
 
 When a run finishes, use the **Export** buttons on the run page (or hit the API directly) to

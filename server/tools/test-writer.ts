@@ -60,19 +60,50 @@ export function writeTest(
   return { savedTo: "project", path: projectPath };
 }
 
+export interface PlaywrightSummary {
+  passed: number;
+  failed: number;
+  flaky: number;
+  skipped: number;
+}
+
+/**
+ * Parse the counts from Playwright's line/list reporter summary. Playwright
+ * itself does the retry bookkeeping: with `--retries=N`, a spec that fails then
+ * passes on a retry is reported as "flaky". We just read those totals.
+ */
+export function parsePlaywrightSummary(output: string): PlaywrightSummary {
+  const count = (re: RegExp): number => {
+    const m = output.match(re);
+    return m ? parseInt(m[1], 10) : 0;
+  };
+  return {
+    passed: count(/(\d+)\s+passed/),
+    failed: count(/(\d+)\s+failed/),
+    flaky: count(/(\d+)\s+flaky/),
+    skipped: count(/(\d+)\s+skipped/),
+  };
+}
+
 export interface RunTestsResult {
   exitCode: number | null;
   output: string;
   timedOut: boolean;
+  retries: number;
+  summary: PlaywrightSummary;
+  /** True when Playwright reported one or more flaky specs (passed only on retry). */
+  flaky: boolean;
 }
 
 /** Runs Playwright tests in the target project (best-effort, allowlisted command). */
 export function runTests(
   ctx: RunContext,
-  input: { file?: string },
+  input: { file?: string; retries?: number },
 ): Promise<RunTestsResult> {
   return new Promise((resolvePromise) => {
-    const args = ["playwright", "test", "--reporter=line"];
+    // Cap retries to a sane range; default 2 so Playwright can surface flakiness.
+    const retries = Math.max(0, Math.min(input.retries ?? 2, 5));
+    const args = ["playwright", "test", "--reporter=line", `--retries=${retries}`];
     if (input.file) args.push(input.file);
     ctx.tool("test-writer", `Running tests: npx ${args.join(" ")}`);
 
@@ -95,8 +126,19 @@ export function runTests(
             : err
               ? 1
               : 0;
+        const summary = parsePlaywrightSummary(output);
         ctx.log(output, "playwright-run");
-        resolvePromise({ exitCode: timedOut ? null : exitCode, output, timedOut });
+        if (summary.flaky > 0) {
+          ctx.tool("test-writer", `Detected ${summary.flaky} flaky spec(s) (passed only on retry)`);
+        }
+        resolvePromise({
+          exitCode: timedOut ? null : exitCode,
+          output,
+          timedOut,
+          retries,
+          summary,
+          flaky: summary.flaky > 0,
+        });
       },
     );
     ctx.signal.addEventListener("abort", () => child.kill(), { once: true });

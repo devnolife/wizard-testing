@@ -351,13 +351,19 @@ export function buildTools(env: ToolEnv): Tool[] {
 
     defineTool("run_tests", {
       description:
-        "Run Playwright tests in the target project (best-effort). Returns exit code and output for you to analyze.",
+        "Run Playwright tests in the target project (best-effort). Retries failing specs (default 2) so flaky tests — ones that pass only on retry — are detected. Returns exit code, output, and counts { passed, failed, flaky, skipped }. If flaky > 0, report a PROCESS/minor finding for the flaky spec(s).",
       parameters: {
         type: "object",
-        properties: { file: { type: "string", description: "Optional specific test file to run." } },
+        properties: {
+          file: { type: "string", description: "Optional specific test file to run." },
+          retries: {
+            type: "number",
+            description: "How many times to retry a failing spec (0-5, default 2). Flaky tests pass within these retries.",
+          },
+        },
         additionalProperties: false,
       },
-      handler: async (args: { file?: string }) => {
+      handler: async (args: { file?: string; retries?: number }) => {
         try {
           const res = await runTests(ctx, args);
           return ok(res);

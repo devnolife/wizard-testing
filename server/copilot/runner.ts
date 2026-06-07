@@ -67,6 +67,7 @@ function buildPrompt(run: Run, baseUrl: string, guide: TestingGuide | null): str
     `5. For API: use http_request against the API routes; check status codes and error handling.`,
     `6. Whenever you find a problem OR confirm something important, call report_finding with an accurate category and severity. Use captureScreenshot for UI/UX issues.`,
     `7. Generate test coverage with write_test for the meaningful flows you exercised. ${saveNote}`,
+    `8. Run the specs with run_tests. It retries failing specs, so if it reports flaky > 0, report a PROCESS/minor finding naming the flaky spec(s); if specs fail outright, report the failure.`,
     ``,
     `Rules: Do not ask the user questions — act autonomously. Only interact with the app via the provided tools. Be thorough but efficient. When finished, summarize what you tested and the key findings.`,
   ].join("\n");
