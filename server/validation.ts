@@ -37,6 +37,8 @@ const runConfigSchema = z
     saveDir: z.string().optional(),
     headed: z.boolean().optional(),
     auth: authSchema.optional(),
+    detectSeed: z.boolean().optional(),
+    seedFile: z.string().optional(),
   })
   .refine((c) => c.mode !== "url" || !!c.url, {
     message: "url is required when mode is 'url'",

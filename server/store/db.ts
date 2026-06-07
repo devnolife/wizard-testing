@@ -95,6 +95,12 @@ function initSchema(db: Database.Database) {
   if (!runCols.includes("auth")) {
     db.exec("ALTER TABLE runs ADD COLUMN auth TEXT");
   }
+  if (!runCols.includes("detect_seed")) {
+    db.exec("ALTER TABLE runs ADD COLUMN detect_seed INTEGER NOT NULL DEFAULT 1");
+  }
+  if (!runCols.includes("seed_file")) {
+    db.exec("ALTER TABLE runs ADD COLUMN seed_file TEXT");
+  }
 }
 
 /* ---------- Runs ---------- */
@@ -111,14 +117,16 @@ export function createRun(config: RunConfig): Run {
     summary: null,
   };
   db.prepare(
-    `INSERT INTO runs (id, project_path, mode, url, scope, save_mode, save_dir, headed, auth, status, started_at, finished_at, token_usage, summary)
-     VALUES (@id, @projectPath, @mode, @url, @scope, @saveMode, @saveDir, @headed, @auth, @status, @startedAt, @finishedAt, @tokenUsage, @summary)`,
+    `INSERT INTO runs (id, project_path, mode, url, scope, save_mode, save_dir, headed, auth, detect_seed, seed_file, status, started_at, finished_at, token_usage, summary)
+     VALUES (@id, @projectPath, @mode, @url, @scope, @saveMode, @saveDir, @headed, @auth, @detectSeed, @seedFile, @status, @startedAt, @finishedAt, @tokenUsage, @summary)`,
   ).run({
     ...run,
     url: run.url ?? null,
     saveDir: run.saveDir ?? null,
     headed: run.headed ? 1 : 0,
     auth: run.auth ? JSON.stringify(run.auth) : null,
+    detectSeed: run.detectSeed === false ? 0 : 1,
+    seedFile: run.seedFile ?? null,
     scope: JSON.stringify(run.scope),
     finishedAt: run.finishedAt,
     summary: run.summary,
@@ -163,6 +171,8 @@ interface RunRow {
   save_dir: string | null;
   headed: number;
   auth: string | null;
+  detect_seed: number;
+  seed_file: string | null;
   status: string;
   started_at: number;
   finished_at: number | null;
@@ -181,6 +191,8 @@ function rowToRun(r: RunRow): Run {
     saveDir: r.save_dir ?? undefined,
     headed: !!r.headed,
     auth: r.auth ? JSON.parse(r.auth) : undefined,
+    detectSeed: r.detect_seed === null ? undefined : !!r.detect_seed,
+    seedFile: r.seed_file ?? undefined,
     status: r.status as RunStatus,
     startedAt: r.started_at,
     finishedAt: r.finished_at,

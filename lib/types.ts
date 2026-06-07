@@ -67,6 +67,22 @@ export interface AuthConfig {
   submitSelector?: string;
 }
 
+/**
+ * A login credential discovered by scanning the local project's seed scripts,
+ * `.env` files, fixtures or SQL. Safe to surface because the wizard only runs
+ * against locally-controlled projects.
+ */
+export interface SeedAccount {
+  /** Email or username used to log in. */
+  identifier: string;
+  /** Password / secret paired with the identifier. */
+  secret: string;
+  /** Detected role, when discernible (e.g. "admin", "user"). */
+  role?: string;
+  /** Project-relative file the credential was found in. */
+  source: string;
+}
+
 export type RunStatus =
   | "pending"
   | "running"
@@ -100,6 +116,13 @@ export interface RunConfig {
   headed?: boolean;
   /** Optional login credentials; when set the wizard authenticates first. */
   auth?: AuthConfig;
+  /**
+   * Scan the local project for seeded/test login accounts (.env, seed scripts,
+   * fixtures) and make them available to the agent. Defaults to on.
+   */
+  detectSeed?: boolean;
+  /** Optional explicit seed file/folder (relative to projectPath) to prioritise. */
+  seedFile?: string;
 }
 
 export interface Run extends RunConfig {

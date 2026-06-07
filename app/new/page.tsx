@@ -18,6 +18,8 @@ export default function NewRunPage() {
   const [loginPath, setLoginPath] = useState("/login");
   const [authUser, setAuthUser] = useState("");
   const [authPass, setAuthPass] = useState("");
+  const [detectSeed, setDetectSeed] = useState(true);
+  const [seedFile, setSeedFile] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -41,6 +43,8 @@ export default function NewRunPage() {
               password: authPass,
             }
           : undefined,
+      detectSeed,
+      seedFile: detectSeed && seedFile.trim() ? seedFile.trim() : undefined,
     };
     try {
       const res = await fetch("/api/runs", {
@@ -204,6 +208,35 @@ export default function NewRunPage() {
               </div>
               <p className="text-xs text-zinc-400">
                 Credentials are stored locally in the run record and only used against the target app.
+              </p>
+            </div>
+          )}
+        </fieldset>
+
+        <fieldset>
+          <legend className={label}>Seed / test accounts (local)</legend>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={detectSeed}
+              onChange={(e) => setDetectSeed(e.target.checked)}
+            />
+            Auto-detect seed/test accounts from the project (scans .env, seed scripts &amp; fixtures)
+          </label>
+          {detectSeed && (
+            <div className="mt-3 space-y-2">
+              <div>
+                <label className={label}>Seed file (optional)</label>
+                <input
+                  className={input}
+                  value={seedFile}
+                  onChange={(e) => setSeedFile(e.target.value)}
+                  placeholder="prisma/seed.ts  (leave empty to auto-scan)"
+                />
+              </div>
+              <p className="text-xs text-zinc-400">
+                When a flow needs login and no credentials were provided, the agent can log in
+                with a detected account. Secrets are masked in the live log. Local projects only.
               </p>
             </div>
           )}

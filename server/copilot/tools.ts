@@ -5,6 +5,7 @@ import type { BrowserController } from "../tools/browser";
 import { apiRequest } from "../tools/http";
 import { discoverApp, readProjectFile } from "../tools/codebase";
 import { writeTest, runTests } from "../tools/test-writer";
+import { detectSeedAccounts } from "../tools/seed";
 import {
   hasBaseline,
   readBaseline,
@@ -19,6 +20,8 @@ export interface ToolEnv {
   baseUrl: string;
   browser: BrowserController;
   projectPath: string;
+  /** Optional seed file/folder hint for find_seed_accounts. */
+  seedFile?: string;
 }
 
 function ok(data: unknown): string {
@@ -87,6 +90,29 @@ export function buildTools(env: ToolEnv): Tool[] {
         try {
           const res = readProjectFile(env.projectPath, args.path);
           return ok(res);
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : String(e));
+        }
+      },
+    }),
+
+    defineTool("find_seed_accounts", {
+      description:
+        "Scan the local project for seeded/test login accounts — it reads .env files, seed scripts (e.g. prisma/seed), fixtures and SQL for credential pairs. Use this when a page or flow requires login and no credentials were provided: pick a returned account (prefer one whose role matches what you're testing) and call browser_login with its identifier/secret. Safe because the wizard only targets local projects.",
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+      handler: () => {
+        try {
+          const accounts = detectSeedAccounts(env.projectPath, env.seedFile);
+          ctx.tool(
+            "find_seed_accounts",
+            accounts.length
+              ? `Found ${accounts.length} seed account(s): ${accounts
+                  .map((a) => `${a.identifier} (${a.role ?? "user"})`)
+                  .join(", ")}`
+              : "No seed accounts found in the project",
+            { count: accounts.length },
+          );
+          return ok({ accounts });
         } catch (e) {
           return fail(e instanceof Error ? e.message : String(e));
         }
@@ -470,6 +496,7 @@ export function buildTools(env: ToolEnv): Tool[] {
 export const TOOL_NAMES = [
   "discover_app",
   "read_file",
+  "find_seed_accounts",
   "http_request",
   "browser_goto",
   "browser_click",

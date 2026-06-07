@@ -72,6 +72,13 @@ Then open the dashboard, click **New Run**, and provide:
   pages and flows can be exercised. The agent can also re-authenticate via the `browser_login` tool.
   After a successful login the session (cookies/localStorage) is saved and **reused on the next
   run for the same project** (within 12h), skipping a redundant re-login.
+- **Seed / test accounts** *(local, on by default)* — instead of typing credentials, let the wizard
+  auto-detect them. It scans the project's `.env*` files, seed scripts (`prisma/seed`, `db`,
+  `scripts`, …), and fixtures for identifier/secret pairs (env-var pairs, object literals, and
+  SQL `VALUES` tuples). Detected accounts are injected into the agent prompt (secrets are **masked
+  in the live log**) and exposed via the `find_seed_accounts` tool, so when a flow needs login and
+  no credentials were provided the agent can sign in with a real seeded account. Optionally point it
+  at a specific **seed file** to scan. Safe because the wizard only targets local projects.
 - **Save mode** — `ephemeral` (generated tests live in a temp dir) or save tests into the project.
 
 Live progress, findings, and screenshots stream into the run page. The **Live browser view**

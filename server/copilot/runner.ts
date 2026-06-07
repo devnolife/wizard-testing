@@ -1,11 +1,12 @@
 import "server-only";
 import type { RunContext } from "../orchestrator";
-import type { Run, RunStatus } from "@/lib/types";
+import type { Run, RunStatus, SeedAccount } from "@/lib/types";
 import { listFindings } from "../store/db";
 import { ProjectRunner, AppUnavailableError } from "../tools/project-runner";
 import { BrowserController } from "../tools/browser";
 import { readTestingGuide, type TestingGuide } from "../tools/guide";
 import { detectFramework } from "../tools/codebase";
+import { detectSeedAccounts, maskSecret } from "../tools/seed";
 import { sessionStatePath, hasFreshSession } from "../store/baselines";
 import { buildTools } from "./tools";
 import { createCopilotSession, disposeCopilot, type CopilotHandle } from "./session";
@@ -61,6 +62,7 @@ function buildPrompt(
   baseUrl: string,
   guide: TestingGuide | null,
   framework: string,
+  seedAccounts: SeedAccount[],
 ): string {
   const scopes = activeScopes(run);
   const saveNote =
@@ -89,18 +91,31 @@ function buildPrompt(
         ]
       : [];
 
+  const seedSection =
+    seedAccounts.length > 0
+      ? [
+          ``,
+          `Seed/test accounts detected in the local project (use them to log in when a page or flow requires authentication — call browser_login with the identifier and secret; you can also call find_seed_accounts to re-fetch them):`,
+          ...seedAccounts.map(
+            (a, i) =>
+              `  ${i + 1}. ${a.identifier} / ${a.secret}${a.role ? ` (role: ${a.role})` : ""} — from ${a.source}`,
+          ),
+        ]
+      : [];
+
   return [
     `You are an autonomous QA engineer testing a running ${framework} web app at ${baseUrl}.`,
     `The project source is your working directory.`,
     ...guideSection,
     ...authSection,
+    ...seedSection,
     ``,
     `Test scope for this run:`,
     ...scopes.map((s) => `- ${s}`),
     ``,
     `How to work:`,
     `1. Call discover_app to detect the framework and list pages and API routes. Use read_file to understand key pages/handlers. If discover_app returns a \`note\` (e.g. a client-rendered SPA), navigate to "/" with browser_goto then call list_links to discover routes.`,
-    `2. For UI/UX: use browser_goto, browser_click, browser_fill, and browser_snapshot to explore real user flows. Inspect snapshot accessibility numbers and console/page errors.`,
+    `2. For UI/UX: use browser_goto, browser_click, browser_fill, and browser_snapshot to explore real user flows. Inspect snapshot accessibility numbers and console/page errors. If a flow needs login and you have no session, use a detected seed account (or call find_seed_accounts) with browser_login.`,
     `3. For accessibility & performance: call audit_page on important pages to get axe-core WCAG violations and load metrics, and report the significant ones. For authoritative scores, call lighthouse_audit on the 1–2 most important pages — report a PERF or UX finding when performance < 80 or accessibility < 90, citing the score and worst metric.`,
     `4. For visual stability: call visual_check (with the route as label) on key pages — it creates a baseline the first time and flags pixel regressions on later runs.`,
     `5. For API: use http_request against the API routes; check status codes and error handling.`,
@@ -156,7 +171,7 @@ export async function runPipeline(
     if (run.headed || process.env.WIZARD_HEADED === "1") {
       ctx.step("Browser runs in a visible window (headed mode)");
     }
-    const tools = buildTools({ ctx, baseUrl, browser, projectPath: run.projectPath });
+    const tools = buildTools({ ctx, baseUrl, browser, projectPath: run.projectPath, seedFile: run.seedFile });
 
     ctx.step("Starting Copilot agent");
     copilot = await createCopilotSession({ workingDirectory: run.projectPath, tools });
@@ -166,6 +181,32 @@ export async function runPipeline(
       ctx.step(`Loaded testing guide from ${guide.relPath}`, { path: guide.relPath });
     } else {
       ctx.step("No testing guide found (add wizard.md to give the agent test accounts & feature context)");
+    }
+
+    let seedAccounts: SeedAccount[] = [];
+    if (run.detectSeed !== false) {
+      try {
+        seedAccounts = detectSeedAccounts(run.projectPath, run.seedFile);
+        if (seedAccounts.length > 0) {
+          ctx.step(
+            `Detected ${seedAccounts.length} seed/test account(s) in the project`,
+            {
+              accounts: seedAccounts.map((a) => ({
+                identifier: a.identifier,
+                secret: maskSecret(a.secret),
+                role: a.role,
+                source: a.source,
+              })),
+            },
+          );
+        } else {
+          ctx.step("No seed/test accounts detected in the project");
+        }
+      } catch (e) {
+        ctx.emit("log", `Seed detection error: ${e instanceof Error ? e.message : String(e)}`, {
+          source: "seed",
+        });
+      }
     }
 
     copilot.session.on("assistant.message", (event) => {
@@ -199,7 +240,7 @@ export async function runPipeline(
     }
 
     ctx.step("Agent is exploring and testing the app");
-    const prompt = buildPrompt(run, baseUrl, guide, fw.framework);
+    const prompt = buildPrompt(run, baseUrl, guide, fw.framework, seedAccounts);
 
     // Live screencast: stream a viewport frame on a timer so the dashboard's
     // "Live browser view" updates continuously, not just on discrete actions.
