@@ -4,8 +4,52 @@
 export type RunMode = "auto-start" | "url";
 export type SaveMode = "ephemeral" | "project";
 
-export type ScopeKey = "ui" | "ux" | "api";
+export type ScopeKey =
+  | "ui"
+  | "ux"
+  | "api"
+  | "performance"
+  | "accessibility"
+  | "seo"
+  | "visual"
+  | "security"
+  | "responsive"
+  | "links"
+  | "console";
 export type Scope = Record<ScopeKey, boolean>;
+
+/** Metadata for each test scope — drives the New Run form UI. */
+export interface ScopeMeta {
+  key: ScopeKey;
+  label: string;
+  description: string;
+  /** Default-checked in the New Run form. */
+  defaultOn: boolean;
+}
+
+export const SCOPE_META: ScopeMeta[] = [
+  { key: "ui", label: "UI", description: "Pages render, navigation & user flows work", defaultOn: true },
+  { key: "ux", label: "UX", description: "Usability heuristics, clear errors/feedback, no dead-ends", defaultOn: true },
+  { key: "api", label: "API", description: "Endpoint status codes, payloads & error handling", defaultOn: true },
+  { key: "performance", label: "Performance", description: "Lighthouse score & Core Web Vitals (FCP, LCP, TBT, CLS)", defaultOn: false },
+  { key: "accessibility", label: "Accessibility", description: "Deep WCAG 2 A/AA audit (axe-core + Lighthouse a11y)", defaultOn: false },
+  { key: "seo", label: "SEO", description: "Titles, meta tags, headings & Lighthouse SEO score", defaultOn: false },
+  { key: "visual", label: "Visual regression", description: "Baseline & pixel-diff key pages to catch visual changes", defaultOn: false },
+  { key: "security", label: "Security", description: "Security headers, secret/error leakage, unauth access", defaultOn: false },
+  { key: "responsive", label: "Responsive", description: "Layout at mobile, tablet & desktop widths (overflow/breakage)", defaultOn: false },
+  { key: "links", label: "Links", description: "Crawl internal links to find broken/dead routes", defaultOn: false },
+  { key: "console", label: "Console errors", description: "Catch console errors & uncaught JS exceptions", defaultOn: false },
+];
+
+export const SCOPE_KEYS: ScopeKey[] = SCOPE_META.map((m) => m.key);
+
+/** A fresh Scope with each key set to its form default. */
+export function defaultScope(): Scope {
+  return SCOPE_META.reduce((acc, m) => {
+    acc[m.key] = m.defaultOn;
+    return acc;
+  }, {} as Scope);
+}
 
 /**
  * Optional credentials so the wizard can log into the target app before testing.
@@ -31,7 +75,16 @@ export type RunStatus =
   | "error"
   | "cancelled";
 
-export type FindingCategory = "UI" | "UX" | "API" | "PROCESS";
+export type FindingCategory =
+  | "UI"
+  | "UX"
+  | "API"
+  | "PROCESS"
+  | "PERF"
+  | "A11Y"
+  | "SEO"
+  | "SECURITY"
+  | "VISUAL";
 export type Severity = "critical" | "major" | "minor" | "info";
 
 export interface RunConfig {

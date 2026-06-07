@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { RunEvent, RunReport } from "@/lib/types";
-import { statusColor, severityColor, categoryColor, formatDuration } from "@/lib/format";
+import { statusColor, severityColor, categoryColor, formatDuration, formatScope } from "@/lib/format";
 
 function artifactUrl(path: string): string {
   return `/api/artifact?path=${encodeURIComponent(path)}`;
@@ -114,7 +114,7 @@ export default function RunPage() {
       {run && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Mode" value={run.mode} />
-          <Stat label="Scope" value={["ui", "ux", "api"].filter((k) => run.scope[k as "ui"]).join(", ").toUpperCase() || "—"} />
+          <Stat label="Scope" value={formatScope(run.scope)} />
           <Stat label="Duration" value={formatDuration(run.startedAt, run.finishedAt)} />
           <Stat label="Findings" value={String(findings.length)} />
         </div>

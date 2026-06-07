@@ -8,6 +8,14 @@ const scopeSchema = z.object({
   ui: z.boolean(),
   ux: z.boolean(),
   api: z.boolean(),
+  performance: z.boolean().default(false),
+  accessibility: z.boolean().default(false),
+  seo: z.boolean().default(false),
+  visual: z.boolean().default(false),
+  security: z.boolean().default(false),
+  responsive: z.boolean().default(false),
+  links: z.boolean().default(false),
+  console: z.boolean().default(false),
 });
 
 const authSchema = z.object({
@@ -34,8 +42,8 @@ const runConfigSchema = z
     message: "url is required when mode is 'url'",
     path: ["url"],
   })
-  .refine((c) => c.scope.ui || c.scope.ux || c.scope.api, {
-    message: "At least one scope (ui/ux/api) must be enabled",
+  .refine((c) => Object.values(c.scope).some(Boolean), {
+    message: "At least one test scope must be enabled",
     path: ["scope"],
   });
 

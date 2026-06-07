@@ -486,6 +486,28 @@ export class BrowserController {
   }
 
   /**
+   * Resize the viewport (for responsive testing) and report whether the page
+   * overflows horizontally at that width — the most common responsive bug.
+   */
+  async setViewport(
+    width: number,
+    height: number,
+  ): Promise<{ width: number; height: number; horizontalOverflow: boolean; scrollWidth: number }> {
+    const page = await this.ensurePage();
+    await page.setViewportSize({ width, height });
+    await page.waitForTimeout(150);
+    const scrollWidth = await page.evaluate(
+      () => document.documentElement.scrollWidth,
+    );
+    return {
+      width,
+      height,
+      horizontalOverflow: scrollWidth > width + 1,
+      scrollWidth,
+    };
+  }
+
+  /**
    * Run a full Lighthouse audit against a URL. Launches its own isolated
    * headless Chromium with a remote-debugging port and drives Lighthouse over
    * CDP, so it never interferes with the live testing page. Lighthouse is a

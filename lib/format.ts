@@ -1,4 +1,11 @@
-import type { RunStatus, Severity, FindingCategory } from "./types";
+import type { RunStatus, Severity, FindingCategory, Scope } from "./types";
+import { SCOPE_META } from "./types";
+
+/** Human-readable list of enabled scope labels (e.g. "UI, API, Performance"). */
+export function formatScope(scope: Scope): string {
+  const on = SCOPE_META.filter((m) => scope[m.key]).map((m) => m.label);
+  return on.length ? on.join(", ") : "—";
+}
 
 export function statusColor(status: RunStatus): string {
   switch (status) {
@@ -40,6 +47,16 @@ export function categoryColor(cat: FindingCategory): string {
       return "bg-teal-100 text-teal-800";
     case "PROCESS":
       return "bg-rose-100 text-rose-800";
+    case "PERF":
+      return "bg-amber-100 text-amber-800";
+    case "A11Y":
+      return "bg-cyan-100 text-cyan-800";
+    case "SEO":
+      return "bg-lime-100 text-lime-800";
+    case "SECURITY":
+      return "bg-red-100 text-red-800";
+    case "VISUAL":
+      return "bg-violet-100 text-violet-800";
   }
 }
 

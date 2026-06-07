@@ -52,7 +52,21 @@ Then open the dashboard, click **New Run**, and provide:
 - **Project path** — absolute path to the Next.js project to test.
 - **Mode** — `auto-start` (the wizard runs the dev script on an isolated free port) or `url`
   (you provide a URL to an already-running app).
-- **Scope** — any combination of UI, UX, and API.
+- **Scope** — any combination of eleven locally-run test scopes:
+  - **UI** — pages render, navigation & user flows work.
+  - **UX** — usability heuristics, clear errors/feedback, no dead-ends.
+  - **API** — endpoint status codes, payloads & error handling.
+  - **Performance** — Lighthouse score & Core Web Vitals (FCP, LCP, TBT, CLS).
+  - **Accessibility** — deep WCAG 2 A/AA audit (axe-core + Lighthouse a11y).
+  - **SEO** — titles, meta tags, headings & Lighthouse SEO score.
+  - **Visual regression** — baseline & pixel-diff key pages.
+  - **Security** — security headers, secret/error leakage, unauthenticated access to protected routes.
+  - **Responsive** — layout at mobile, tablet & desktop widths (`set_viewport` checks for overflow/breakage).
+  - **Links** — crawl internal links to find broken/dead routes.
+  - **Console errors** — catch console errors & uncaught JS exceptions during navigation.
+
+  Each enabled scope adds focused instructions to the agent and a matching finding category
+  (PERF, A11Y, SEO, SECURITY, VISUAL) so results are easy to filter.
 - **Authentication** *(optional)* — supply a login path + test credentials and the wizard
   signs in before testing (auto-detecting the username/password fields), so authenticated
   pages and flows can be exercised. The agent can also re-authenticate via the `browser_login` tool.

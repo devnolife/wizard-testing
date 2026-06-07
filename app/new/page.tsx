@@ -3,13 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { RunConfig } from "@/lib/types";
+import { SCOPE_META, defaultScope } from "@/lib/types";
 
 export default function NewRunPage() {
   const router = useRouter();
   const [projectPath, setProjectPath] = useState("");
   const [mode, setMode] = useState<"auto-start" | "url">("auto-start");
   const [url, setUrl] = useState("http://localhost:3000");
-  const [scope, setScope] = useState({ ui: true, ux: true, api: true });
+  const [scope, setScope] = useState(defaultScope());
   const [saveMode, setSaveMode] = useState<"ephemeral" | "project">("ephemeral");
   const [saveDir, setSaveDir] = useState("tests/wizard");
   const [headed, setHeaded] = useState(false);
@@ -102,15 +103,25 @@ export default function NewRunPage() {
 
         <fieldset>
           <legend className={label}>Test scope</legend>
-          <div className="mt-2 flex gap-4 text-sm">
-            {(["ui", "ux", "api"] as const).map((k) => (
-              <label key={k} className="flex items-center gap-2">
+          <p className="mt-1 text-xs text-zinc-500">
+            Everything runs locally against your project. Pick what to test.
+          </p>
+          <div className="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            {SCOPE_META.map((m) => (
+              <label
+                key={m.key}
+                className="flex items-start gap-2 rounded border border-zinc-200 p-2 hover:bg-zinc-50"
+              >
                 <input
                   type="checkbox"
-                  checked={scope[k]}
-                  onChange={(e) => setScope({ ...scope, [k]: e.target.checked })}
+                  className="mt-0.5"
+                  checked={scope[m.key]}
+                  onChange={(e) => setScope({ ...scope, [m.key]: e.target.checked })}
                 />
-                {k.toUpperCase()}
+                <span>
+                  <span className="font-medium">{m.label}</span>
+                  <span className="block text-xs text-zinc-500">{m.description}</span>
+                </span>
               </label>
             ))}
           </div>

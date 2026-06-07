@@ -47,4 +47,21 @@ describe("validateRunConfig", () => {
     });
     expect(res.ok).toBe(false);
   });
+
+  it("accepts a config enabling only a new scope (e.g. performance)", () => {
+    const res = validateRunConfig({
+      ...base,
+      scope: { ui: false, ux: false, api: false, performance: true },
+    });
+    expect(res.ok).toBe(true);
+    expect(res.config?.scope.performance).toBe(true);
+  });
+
+  it("defaults unspecified scope keys to false", () => {
+    const res = validateRunConfig({ ...base, scope: { ui: true, ux: false, api: false } });
+    expect(res.ok).toBe(true);
+    expect(res.config?.scope.security).toBe(false);
+    expect(res.config?.scope.responsive).toBe(false);
+    expect(res.config?.scope.console).toBe(false);
+  });
 });

@@ -28,7 +28,17 @@ function fail(message: string): string {
   return JSON.stringify({ error: message });
 }
 
-const CATEGORIES: FindingCategory[] = ["UI", "UX", "API", "PROCESS"];
+const CATEGORIES: FindingCategory[] = [
+  "UI",
+  "UX",
+  "API",
+  "PROCESS",
+  "PERF",
+  "A11Y",
+  "SEO",
+  "SECURITY",
+  "VISUAL",
+];
 const SEVERITIES: Severity[] = ["critical", "major", "minor", "info"];
 
 export function buildTools(env: ToolEnv): Tool[] {
@@ -192,6 +202,33 @@ export function buildTools(env: ToolEnv): Tool[] {
           const links = await browser.listLinks();
           ctx.tool("list_links", `Found ${links.length} internal link(s)`);
           return ok({ links });
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : String(e));
+        }
+      },
+    }),
+
+    defineTool("set_viewport", {
+      description:
+        "Resize the browser viewport (for responsive testing) and report whether the current page overflows horizontally at that width. Use common breakpoints — mobile ~375x812, tablet ~768x1024, desktop ~1280x800 — re-snapshot after resizing, and report a UI finding when horizontalOverflow is true or the layout breaks.",
+      parameters: {
+        type: "object",
+        properties: {
+          width: { type: "number", description: "Viewport width in px (e.g. 375)." },
+          height: { type: "number", description: "Viewport height in px (e.g. 812)." },
+        },
+        required: ["width", "height"],
+        additionalProperties: false,
+      },
+      handler: async (args: { width: number; height: number }) => {
+        try {
+          const res = await browser.setViewport(args.width, args.height);
+          ctx.tool(
+            "set_viewport",
+            `Viewport ${res.width}x${res.height}${res.horizontalOverflow ? " — horizontal overflow!" : ""}`,
+            { horizontalOverflow: res.horizontalOverflow },
+          );
+          return ok(res);
         } catch (e) {
           return fail(e instanceof Error ? e.message : String(e));
         }
@@ -439,6 +476,7 @@ export const TOOL_NAMES = [
   "browser_fill",
   "browser_snapshot",
   "list_links",
+  "set_viewport",
   "browser_login",
   "audit_page",
   "lighthouse_audit",

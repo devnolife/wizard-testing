@@ -14,12 +14,45 @@ const AGENT_TIMEOUT_MS = 1000 * 60 * 15; // 15 minutes hard cap per run.
 
 function activeScopes(run: Run): string[] {
   const s: string[] = [];
-  if (run.scope.ui) s.push("UI correctness (pages render, navigation, flows work)");
-  if (run.scope.ux)
+  const sc = run.scope;
+  if (sc.ui) s.push("UI correctness (pages render, navigation, flows work)");
+  if (sc.ux)
     s.push(
-      "UX quality (end-to-end flows complete without dead-ends; accessibility: alt text, labels, keyboard, lang, contrast; usability heuristics: clear errors, feedback)",
+      "UX quality (end-to-end flows complete without dead-ends; usability heuristics: clear errors, feedback, no confusing states)",
     );
-  if (run.scope.api) s.push("API correctness (status codes, payloads, error handling)");
+  if (sc.api) s.push("API correctness (status codes, payloads, error handling)");
+  if (sc.performance)
+    s.push(
+      "Performance — run lighthouse_audit on the most important page(s); report a PERF finding when performance < 80 or Core Web Vitals are poor (slow FCP/LCP, high TBT/CLS).",
+    );
+  if (sc.accessibility)
+    s.push(
+      "Accessibility (WCAG 2 A/AA) — run audit_page (axe-core) and lighthouse_audit on key pages; report A11Y findings for violations (missing alt text/labels/lang, low contrast, keyboard traps).",
+    );
+  if (sc.seo)
+    s.push(
+      "SEO — verify each page has a unique title and meta description, a single descriptive H1, and a good Lighthouse SEO score; report SEO findings for gaps.",
+    );
+  if (sc.visual)
+    s.push(
+      "Visual regression — call visual_check({ label }) on key pages to baseline and diff them; report a VISUAL finding when pixels regress beyond threshold.",
+    );
+  if (sc.security)
+    s.push(
+      "Security (local checks) — use http_request to check security headers (CSP, X-Frame-Options, X-Content-Type-Options) and that error responses don't leak stack traces or secrets; use read_file to confirm no secrets/keys are hard-coded in client code; verify protected routes reject unauthenticated requests. Report SECURITY findings.",
+    );
+  if (sc.responsive)
+    s.push(
+      "Responsive design — use set_viewport to switch between mobile (375x812), tablet (768x1024) and desktop (1280x800), re-snapshot each, and report a UI finding for horizontal overflow, broken layout or hidden content.",
+    );
+  if (sc.links)
+    s.push(
+      "Link integrity — use list_links then http_request to confirm internal links resolve (no 404/500 dead links); report findings for broken links.",
+    );
+  if (sc.console)
+    s.push(
+      "Runtime errors — watch for console errors and uncaught exceptions while navigating (browser_snapshot reports consoleErrors/pageErrors); report findings for any that appear.",
+    );
   return s;
 }
 

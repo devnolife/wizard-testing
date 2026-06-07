@@ -6,6 +6,7 @@ import {
   reportFilename,
 } from "@/server/report/export";
 import type { RunReport, Finding } from "@/lib/types";
+import { defaultScope } from "@/lib/types";
 
 function finding(over: Partial<Finding> = {}): Finding {
   return {
@@ -27,7 +28,7 @@ const report: RunReport = {
     id: "run-1234abcd",
     projectPath: "D:\\projects\\my-app",
     mode: "auto-start",
-    scope: { ui: true, ux: false, api: true },
+    scope: { ...defaultScope(), ui: true, ux: false, api: true },
     saveMode: "ephemeral",
     status: "failed",
     startedAt: 1700000000000,

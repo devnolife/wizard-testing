@@ -1,5 +1,6 @@
 import "server-only";
 import type { RunReport, Severity, Finding } from "@/lib/types";
+import { formatScope } from "@/lib/format";
 
 const SEVERITY_ORDER: Severity[] = ["critical", "major", "minor", "info"];
 
@@ -44,7 +45,7 @@ export function buildMarkdownReport(report: RunReport): string {
   lines.push(`- **Status:** ${run.status}`);
   lines.push(`- **Mode:** ${run.mode}${run.url ? ` (${run.url})` : ""}`);
   lines.push(
-    `- **Scope:** ${(["ui", "ux", "api"] as const).filter((k) => run.scope[k]).join(", ").toUpperCase() || "—"}`,
+    `- **Scope:** ${formatScope(run.scope)}`,
   );
   lines.push(`- **Started:** ${fmtDate(run.startedAt)}`);
   lines.push(`- **Finished:** ${fmtDate(run.finishedAt)}`);
@@ -125,8 +126,7 @@ export function buildHtmlReport(
     })
     .join("\n");
 
-  const scope =
-    (["ui", "ux", "api"] as const).filter((k) => run.scope[k]).join(", ").toUpperCase() || "—";
+  const scope = formatScope(run.scope);
 
   return `<!doctype html>
 <html lang="en">
