@@ -7,6 +7,22 @@ export type SaveMode = "ephemeral" | "project";
 export type ScopeKey = "ui" | "ux" | "api";
 export type Scope = Record<ScopeKey, boolean>;
 
+/**
+ * Optional credentials so the wizard can log into the target app before testing.
+ * When provided, the wizard performs the login once (auto-detecting the form
+ * fields when selectors are omitted) so every browser action runs authenticated.
+ */
+export interface AuthConfig {
+  /** Path of the login page, e.g. /login. */
+  loginPath: string;
+  username: string;
+  password: string;
+  /** Optional explicit selectors; auto-detected when omitted. */
+  usernameSelector?: string;
+  passwordSelector?: string;
+  submitSelector?: string;
+}
+
 export type RunStatus =
   | "pending"
   | "running"
@@ -27,6 +43,10 @@ export interface RunConfig {
   saveMode: SaveMode;
   /** Folder (relative to projectPath) to write tests into when saveMode === "project". */
   saveDir?: string;
+  /** Run the browser in a visible window (headed) so you can watch it live. */
+  headed?: boolean;
+  /** Optional login credentials; when set the wizard authenticates first. */
+  auth?: AuthConfig;
 }
 
 export interface Run extends RunConfig {
@@ -66,6 +86,7 @@ export type RunEventKind =
   | "tool"
   | "finding"
   | "screenshot"
+  | "live_frame"
   | "log"
   | "error"
   | "done";

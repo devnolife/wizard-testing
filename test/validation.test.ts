@@ -30,4 +30,21 @@ describe("validateRunConfig", () => {
     const res = validateRunConfig({ ...base, projectPath: "Z:/definitely/not/here" });
     expect(res.ok).toBe(false);
   });
+
+  it("accepts a valid auth block", () => {
+    const res = validateRunConfig({
+      ...base,
+      auth: { loginPath: "/login", username: "u@x.com", password: "secret" },
+    });
+    expect(res.ok).toBe(true);
+    expect(res.config?.auth?.username).toBe("u@x.com");
+  });
+
+  it("rejects an auth block missing required fields", () => {
+    const res = validateRunConfig({
+      ...base,
+      auth: { loginPath: "/login", username: "u@x.com" },
+    });
+    expect(res.ok).toBe(false);
+  });
 });

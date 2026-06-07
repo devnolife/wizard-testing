@@ -10,6 +10,15 @@ const scopeSchema = z.object({
   api: z.boolean(),
 });
 
+const authSchema = z.object({
+  loginPath: z.string().min(1),
+  username: z.string().min(1),
+  password: z.string().min(1),
+  usernameSelector: z.string().optional(),
+  passwordSelector: z.string().optional(),
+  submitSelector: z.string().optional(),
+});
+
 const runConfigSchema = z
   .object({
     projectPath: z.string().min(1),
@@ -18,6 +27,8 @@ const runConfigSchema = z
     scope: scopeSchema,
     saveMode: z.enum(["ephemeral", "project"]),
     saveDir: z.string().optional(),
+    headed: z.boolean().optional(),
+    auth: authSchema.optional(),
   })
   .refine((c) => c.mode !== "url" || !!c.url, {
     message: "url is required when mode is 'url'",

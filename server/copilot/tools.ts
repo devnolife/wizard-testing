@@ -5,6 +5,13 @@ import type { BrowserController } from "../tools/browser";
 import { apiRequest } from "../tools/http";
 import { discoverApp, readProjectFile } from "../tools/codebase";
 import { writeTest, runTests } from "../tools/test-writer";
+import {
+  hasBaseline,
+  readBaseline,
+  saveBaseline,
+  routeKey,
+} from "../store/baselines";
+import { diffPng } from "../report/visual";
 import type { FindingCategory, Severity } from "@/lib/types";
 
 export interface ToolEnv {
@@ -26,6 +33,17 @@ const SEVERITIES: Severity[] = ["critical", "major", "minor", "info"];
 
 export function buildTools(env: ToolEnv): Tool[] {
   const { ctx, browser } = env;
+
+  // Capture the current browser frame and stream it to the dashboard as a
+  // "screencast" event, so users see the interaction live inside the app.
+  const streamFrame = async (label: string) => {
+    try {
+      const shot = await browser.screenshot();
+      ctx.screenshot(shot, label);
+    } catch {
+      /* screenshot is best-effort; never fail the action because of it */
+    }
+  };
 
   return ([
     defineTool("discover_app", {
@@ -98,6 +116,7 @@ export function buildTools(env: ToolEnv): Tool[] {
         try {
           const res = await browser.goto(args.path);
           ctx.tool("browser_goto", `Navigated to ${res.url} (status ${res.status ?? "?"})`);
+          await streamFrame(`Opened ${args.path}`);
           return ok(res);
         } catch (e) {
           return fail(e instanceof Error ? e.message : String(e));
@@ -116,6 +135,7 @@ export function buildTools(env: ToolEnv): Tool[] {
         try {
           await browser.click(args);
           ctx.tool("browser_click", `Clicked ${args.selector ?? args.text}`);
+          await streamFrame(`Clicked ${args.selector ?? args.text}`);
           return ok({ clicked: true });
         } catch (e) {
           return fail(e instanceof Error ? e.message : String(e));
@@ -135,6 +155,7 @@ export function buildTools(env: ToolEnv): Tool[] {
         try {
           await browser.fill(args.selector, args.value);
           ctx.tool("browser_fill", `Filled ${args.selector}`);
+          await streamFrame(`Typed into ${args.selector}`);
           return ok({ filled: true });
         } catch (e) {
           return fail(e instanceof Error ? e.message : String(e));
@@ -153,6 +174,108 @@ export function buildTools(env: ToolEnv): Tool[] {
           const path = ctx.screenshot(shot, "snapshot");
           ctx.tool("browser_snapshot", `Snapshot of ${snap.url}`);
           return ok({ ...snap, screenshotPath: path });
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : String(e));
+        }
+      },
+    }),
+
+    defineTool("browser_login", {
+      description:
+        "Authenticate against the app. Uses the run's configured credentials by default; you may override the login path/username/password (e.g. from the testing guide). Form fields are auto-detected. Call before testing pages that require a logged-in session.",
+      parameters: {
+        type: "object",
+        properties: {
+          loginPath: { type: "string", description: "e.g. /login" },
+          username: { type: "string" },
+          password: { type: "string" },
+        },
+        additionalProperties: false,
+      },
+      handler: async (args: { loginPath?: string; username?: string; password?: string }) => {
+        const cfg = ctx.run.auth;
+        const auth = {
+          loginPath: args.loginPath ?? cfg?.loginPath,
+          username: args.username ?? cfg?.username,
+          password: args.password ?? cfg?.password,
+          usernameSelector: cfg?.usernameSelector,
+          passwordSelector: cfg?.passwordSelector,
+          submitSelector: cfg?.submitSelector,
+        };
+        if (!auth.loginPath || !auth.username || !auth.password) {
+          return fail("No credentials available. Provide loginPath, username and password.");
+        }
+        try {
+          const res = await browser.login(auth as Parameters<typeof browser.login>[0]);
+          ctx.tool("browser_login", res.ok ? `Logged in (now at ${res.url})` : `Login failed: ${res.detail ?? "unknown"}`);
+          await streamFrame(res.ok ? "Logged in" : "Login attempt");
+          return ok(res);
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : String(e));
+        }
+      },
+    }),
+
+    defineTool("audit_page", {
+      description:
+        "Run an accessibility (axe-core WCAG 2 A/AA) and performance audit on the current page. Returns a11y violations grouped by impact plus load timing metrics. Use to back up UX/accessibility and performance findings with hard data, then call report_finding for the important ones.",
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+      handler: async () => {
+        try {
+          const [a11y, perf] = await Promise.all([browser.axeAudit(), browser.perfMetrics()]);
+          ctx.tool(
+            "audit_page",
+            `Audited ${a11y.url}: ${a11y.violationCount} a11y violation(s), load ${perf.loadComplete}ms`,
+            { violations: a11y.violationCount, loadMs: perf.loadComplete },
+          );
+          return ok({ a11y, performance: perf });
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : String(e));
+        }
+      },
+    }),
+
+    defineTool("visual_check", {
+      description:
+        "Visual regression check for the current page. On first run for a route it saves a baseline screenshot; on later runs it compares against that baseline and reports the pixel mismatch ratio (with a diff image). Use after navigating to a page whose appearance should stay stable. Pass a stable `label` (e.g. the route path) to identify the baseline.",
+      parameters: {
+        type: "object",
+        properties: {
+          label: { type: "string", description: "Stable id for the page, e.g. /login" },
+        },
+        additionalProperties: false,
+      },
+      handler: async (args: { label?: string }) => {
+        try {
+          const key = routeKey(args.label ?? "page");
+          const current = await browser.fullScreenshot();
+          if (!hasBaseline(env.projectPath, key)) {
+            saveBaseline(env.projectPath, key, current);
+            ctx.screenshot(current, `baseline-${key}`);
+            ctx.tool("visual_check", `Saved visual baseline for "${key}"`);
+            return ok({ baseline: "created", key });
+          }
+          const baseline = readBaseline(env.projectPath, key);
+          const diff = diffPng(baseline, current);
+          const changed = diff.mismatchRatio > 0.01 || diff.dimensionMismatch;
+          ctx.screenshot(current, `visual-${key}`);
+          let diffPath: string | null = null;
+          if (changed && !diff.dimensionMismatch && diff.diffPng.length > 0) {
+            diffPath = ctx.screenshot(diff.diffPng, `visual-diff-${key}`);
+          }
+          ctx.tool(
+            "visual_check",
+            `Visual diff for "${key}": ${(diff.mismatchRatio * 100).toFixed(2)}% changed${diff.dimensionMismatch ? " (size changed)" : ""}`,
+            { mismatchRatio: diff.mismatchRatio, changed },
+          );
+          return ok({
+            key,
+            changed,
+            dimensionMismatch: diff.dimensionMismatch,
+            mismatchRatio: diff.mismatchRatio,
+            diffPixels: diff.diffPixels,
+            diffPath,
+          });
         } catch (e) {
           return fail(e instanceof Error ? e.message : String(e));
         }
@@ -255,6 +378,9 @@ export const TOOL_NAMES = [
   "browser_click",
   "browser_fill",
   "browser_snapshot",
+  "browser_login",
+  "audit_page",
+  "visual_check",
   "report_finding",
   "write_test",
   "run_tests",

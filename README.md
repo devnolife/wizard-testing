@@ -53,9 +53,66 @@ Then open the dashboard, click **New Run**, and provide:
 - **Mode** — `auto-start` (the wizard runs the dev script on an isolated free port) or `url`
   (you provide a URL to an already-running app).
 - **Scope** — any combination of UI, UX, and API.
+- **Authentication** *(optional)* — supply a login path + test credentials and the wizard
+  signs in before testing (auto-detecting the username/password fields), so authenticated
+  pages and flows can be exercised. The agent can also re-authenticate via the `browser_login` tool.
+  After a successful login the session (cookies/localStorage) is saved and **reused on the next
+  run for the same project** (within 12h), skipping a redundant re-login.
 - **Save mode** — `ephemeral` (generated tests live in a temp dir) or save tests into the project.
 
-Live progress, findings, and screenshots stream into the run page. History is kept across runs.
+Live progress, findings, and screenshots stream into the run page. The **Live browser view**
+updates continuously (a frame roughly every 1.5s) while the agent drives the browser — so you
+can watch it navigate, click, and type in near real time — plus discrete frames on each action.
+History is kept across runs.
+
+### Accessibility & performance audits
+
+On any page the agent can call `audit_page`, which injects [axe-core](https://github.com/dequelabs/axe-core)
+and runs a **WCAG 2 A/AA accessibility audit** plus lightweight **performance metrics**
+(DOMContentLoaded, load, first contentful paint, TTFB, request count, transferred bytes).
+Violations are grouped by impact and used to back up UX/accessibility findings with hard data.
+
+### Visual regression
+
+The agent can call `visual_check({ label })` on key pages. The first time it sees a page it
+captures a full-page screenshot (at a fixed 1280×800 viewport) as a **baseline** under
+`.wizard-data/baselines/<projectHash>/`. On subsequent runs it diffs the current page against the
+baseline with [pixelmatch](https://github.com/mapbox/pixelmatch); if more than 1% of pixels change
+it writes a diff image and reports a UI finding — catching unintended visual changes between runs.
+
+### Export reports
+
+When a run finishes, use the **Export** buttons on the run page (or hit the API directly) to
+download a report:
+
+```
+/api/runs/<id>/export?format=html   # self-contained HTML (screenshots inlined; print to PDF)
+/api/runs/<id>/export?format=md     # Markdown
+/api/runs/<id>/export?format=json   # full machine-readable report
+/api/runs/<id>/export?format=junit  # JUnit XML for CI (each finding is a testcase)
+```
+
+The **JUnit** format lets you wire the wizard into CI pipelines (GitHub Actions,
+Jenkins, GitLab). Critical/major findings become `<failure>` test cases, minor
+findings become `<skipped>`, and info findings pass — so a buggy app fails the build.
+
+
+### Testing guide (`wizard.md`) — tell the agent about accounts & features
+
+The agent can only infer so much from code. To give it **authoritative context**
+— test accounts/credentials, which features exist, and the key flows to exercise —
+copy [`wizard.template.md`](wizard.template.md) into the **root of the project you
+want to test**, rename it to `wizard.md`, and fill it in.
+
+When a run starts, the wizard auto-detects this file and injects it into the agent
+prompt (you'll see a `Loaded testing guide from wizard.md` step in the live
+timeline). Detected locations, first match wins:
+
+```
+wizard.md   .wizard.md   .wizard/testing.md   docs/wizard.md
+```
+
+Use **test-only** credentials — never put real production secrets in this file.
 
 ### Dev mode
 
@@ -67,6 +124,9 @@ npm run dev
 
 - `PORT` — port the dashboard listens on (default 3000; this repo's smoke tests use 4100).
 - `WIZARD_MODEL` — optional Copilot model override; otherwise the SDK default is used.
+- `WIZARD_HEADED` — set to `1` to force the Playwright browser to run in a **visible
+  window** for every run (watch it navigate, click, and type). You can also enable this
+  per-run with the **Show the browser window** checkbox on the New Run page.
 
 ## Guardrails
 
@@ -96,6 +156,7 @@ crash page, and a 500 API route). Point a run at it to validate the wizard end-t
 | `server/orchestrator.ts` | Run lifecycle singleton, event bus, background execution |
 | `server/copilot/` | SDK session wiring, tool definitions, the run pipeline/prompt |
 | `server/tools/` | The tools the agent calls (project-runner, http, codebase, browser, test-writer) |
+| `server/report/` | Report export builders (HTML / Markdown / JSON / JUnit) |
 | `server/store/` | SQLite persistence + on-disk artifacts (screenshots, logs, tests) |
 | `fixtures/sample-next-app/` | Buggy app for end-to-end validation |
 | `test/` | Unit tests |

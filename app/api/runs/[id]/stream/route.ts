@@ -45,8 +45,11 @@ export async function GET(
 
       // Subscribe to live events; skip any already replayed.
       unsubscribe = orchestrator.subscribe(id, (e) => {
-        if (e.id <= lastId) return;
-        lastId = e.id;
+        // Transient screencast frames carry no persistent id — never dedup them.
+        if (e.kind !== "live_frame") {
+          if (e.id <= lastId) return;
+          lastId = e.id;
+        }
         try {
           controller.enqueue(encoder.encode(sse(e)));
         } catch {

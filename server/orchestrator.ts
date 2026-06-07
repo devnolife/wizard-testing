@@ -9,7 +9,7 @@ import {
   addArtifact,
   listEvents,
 } from "./store/db";
-import { writeScreenshot, writeLog } from "./store/artifacts";
+import { writeScreenshot, writeLiveFrame, writeLog } from "./store/artifacts";
 import type {
   Run,
   RunConfig,
@@ -40,6 +40,12 @@ export interface RunContext {
     suggestion?: string | null;
   }): void;
   screenshot(data: Buffer, label?: string): string;
+  /**
+   * Emit a transient live preview frame (continuous screencast). Unlike
+   * `screenshot`, it is NOT persisted as an artifact or DB event — it only
+   * streams to any live viewers so the "Live browser view" updates smoothly.
+   */
+  liveFrame(data: Buffer): void;
   log(content: string, label?: string): string;
   addTokens(n: number): void;
 }
@@ -126,6 +132,7 @@ class Orchestrator {
 
   private buildContext(run: Run, active: ActiveRun): RunContext {
     const runId = run.id;
+    let liveSeq = 0;
     return {
       run,
       signal: active.controller.signal,
@@ -158,6 +165,20 @@ class Orchestrator {
         addArtifact(runId, "screenshot", path);
         this.emit(runId, active, "screenshot", label ?? "screenshot", { path });
         return path;
+      },
+      liveFrame: (data) => {
+        // Transient: write the frame into a small rotating ring (bounded disk),
+        // do not register an artifact or persist a DB event — stream it directly.
+        const path = writeLiveFrame(runId, data, liveSeq++);
+        const event: RunEvent = {
+          id: -1,
+          runId,
+          ts: Date.now(),
+          kind: "live_frame",
+          message: "live",
+          payload: { path },
+        };
+        active.bus.emit("event", event);
       },
       log: (content, label) => {
         const path = writeLog(runId, content, label);

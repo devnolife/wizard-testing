@@ -84,6 +84,17 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id);
     CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id);
   `);
+
+  // Lightweight migration: add columns introduced after the initial schema.
+  const runCols = (db.prepare("PRAGMA table_info(runs)").all() as { name: string }[]).map(
+    (c) => c.name,
+  );
+  if (!runCols.includes("headed")) {
+    db.exec("ALTER TABLE runs ADD COLUMN headed INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!runCols.includes("auth")) {
+    db.exec("ALTER TABLE runs ADD COLUMN auth TEXT");
+  }
 }
 
 /* ---------- Runs ---------- */
@@ -100,12 +111,14 @@ export function createRun(config: RunConfig): Run {
     summary: null,
   };
   db.prepare(
-    `INSERT INTO runs (id, project_path, mode, url, scope, save_mode, save_dir, status, started_at, finished_at, token_usage, summary)
-     VALUES (@id, @projectPath, @mode, @url, @scope, @saveMode, @saveDir, @status, @startedAt, @finishedAt, @tokenUsage, @summary)`,
+    `INSERT INTO runs (id, project_path, mode, url, scope, save_mode, save_dir, headed, auth, status, started_at, finished_at, token_usage, summary)
+     VALUES (@id, @projectPath, @mode, @url, @scope, @saveMode, @saveDir, @headed, @auth, @status, @startedAt, @finishedAt, @tokenUsage, @summary)`,
   ).run({
     ...run,
     url: run.url ?? null,
     saveDir: run.saveDir ?? null,
+    headed: run.headed ? 1 : 0,
+    auth: run.auth ? JSON.stringify(run.auth) : null,
     scope: JSON.stringify(run.scope),
     finishedAt: run.finishedAt,
     summary: run.summary,
@@ -148,6 +161,8 @@ interface RunRow {
   scope: string;
   save_mode: string;
   save_dir: string | null;
+  headed: number;
+  auth: string | null;
   status: string;
   started_at: number;
   finished_at: number | null;
@@ -164,6 +179,8 @@ function rowToRun(r: RunRow): Run {
     scope: JSON.parse(r.scope),
     saveMode: r.save_mode as Run["saveMode"],
     saveDir: r.save_dir ?? undefined,
+    headed: !!r.headed,
+    auth: r.auth ? JSON.parse(r.auth) : undefined,
     status: r.status as RunStatus,
     startedAt: r.started_at,
     finishedAt: r.finished_at,

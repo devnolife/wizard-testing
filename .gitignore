@@ -50,3 +50,6 @@ fixtures/**/.next/
 fixtures/**/node_modules/
 fixtures/**/tsconfig.json
 
+# Local server log (dev artifact)
+.server.log
+

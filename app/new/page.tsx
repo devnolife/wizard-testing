@@ -12,6 +12,11 @@ export default function NewRunPage() {
   const [scope, setScope] = useState({ ui: true, ux: true, api: true });
   const [saveMode, setSaveMode] = useState<"ephemeral" | "project">("ephemeral");
   const [saveDir, setSaveDir] = useState("tests/wizard");
+  const [headed, setHeaded] = useState(false);
+  const [authEnabled, setAuthEnabled] = useState(false);
+  const [loginPath, setLoginPath] = useState("/login");
+  const [authUser, setAuthUser] = useState("");
+  const [authPass, setAuthPass] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -26,6 +31,15 @@ export default function NewRunPage() {
       scope,
       saveMode,
       saveDir: saveMode === "project" ? saveDir.trim() : undefined,
+      headed,
+      auth:
+        authEnabled && authUser.trim() && authPass
+          ? {
+              loginPath: loginPath.trim() || "/login",
+              username: authUser.trim(),
+              password: authPass,
+            }
+          : undefined,
     };
     try {
       const res = await fetch("/api/runs", {
@@ -117,6 +131,71 @@ export default function NewRunPage() {
               <input className={input} value={saveDir} onChange={(e) => setSaveDir(e.target.value)} placeholder="tests/wizard" />
             )}
           </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className={label}>Browser visibility</legend>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={headed}
+              onChange={(e) => setHeaded(e.target.checked)}
+            />
+            Show the browser window (watch it navigate, click &amp; type live)
+          </label>
+          <p className="mt-1 text-xs text-zinc-400">
+            Off = headless (faster, no window). The window opens on the machine running the dashboard.
+          </p>
+        </fieldset>
+
+        <fieldset>
+          <legend className={label}>Authentication (optional)</legend>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={authEnabled}
+              onChange={(e) => setAuthEnabled(e.target.checked)}
+            />
+            Log in before testing (the wizard auto-detects the login form &amp; signs in)
+          </label>
+          {authEnabled && (
+            <div className="mt-3 space-y-2">
+              <div>
+                <label className={label}>Login path</label>
+                <input
+                  className={input}
+                  value={loginPath}
+                  onChange={(e) => setLoginPath(e.target.value)}
+                  placeholder="/login"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={label}>Username / email</label>
+                  <input
+                    className={input}
+                    value={authUser}
+                    onChange={(e) => setAuthUser(e.target.value)}
+                    placeholder="test@example.com"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className={label}>Password</label>
+                  <input
+                    className={input}
+                    type="password"
+                    value={authPass}
+                    onChange={(e) => setAuthPass(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-zinc-400">
+                Credentials are stored locally in the run record and only used against the target app.
+              </p>
+            </div>
+          )}
         </fieldset>
 
         {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Nested build artifacts (e.g. fixtures/*/.next) must not be linted.
+    "**/.next/**",
+    "**/out/**",
+    // Installed agent skills (third-party scripts) are not part of our source.
+    ".agents/**",
   ]),
 ]);
 

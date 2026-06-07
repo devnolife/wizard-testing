@@ -23,6 +23,8 @@ export default function RunPage() {
   }, [id]);
 
   useEffect(() => {
+    // Initial fetch on mount; setState happens asynchronously after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadReport();
     const es = new EventSource(`/api/runs/${id}/stream`);
     es.onmessage = (msg) => {
@@ -48,6 +50,19 @@ export default function RunPage() {
   const run = report?.run;
   const findings = report?.findings ?? [];
 
+  const lastFrame = [...events]
+    .reverse()
+    .find(
+      (e) =>
+        (e.kind === "live_frame" || e.kind === "screenshot") &&
+        typeof e.payload?.path === "string",
+    );
+  const lastFramePath = lastFrame?.payload?.path as string | undefined;
+  const lastActionLabel = [...events]
+    .reverse()
+    .find((e) => e.kind === "screenshot" || e.kind === "step" || e.kind === "tool")?.message;
+  const timelineEvents = events.filter((e) => e.kind !== "live_frame");
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -64,6 +79,35 @@ export default function RunPage() {
               {run.status}
             </span>
           )}
+          {run && !live && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-zinc-400">Export:</span>
+              <a
+                href={`/api/runs/${id}/export?format=html`}
+                className="rounded border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+              >
+                HTML
+              </a>
+              <a
+                href={`/api/runs/${id}/export?format=md`}
+                className="rounded border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+              >
+                MD
+              </a>
+              <a
+                href={`/api/runs/${id}/export?format=json`}
+                className="rounded border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+              >
+                JSON
+              </a>
+              <a
+                href={`/api/runs/${id}/export?format=junit`}
+                className="rounded border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+              >
+                JUnit
+              </a>
+            </div>
+          )}
         </div>
       </div>
 
@@ -76,6 +120,30 @@ export default function RunPage() {
         </div>
       )}
 
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-zinc-700">Live browser view</h2>
+          <span className="text-xs text-zinc-400">{lastActionLabel ?? (live ? "waiting…" : "")}</span>
+        </div>
+        <div className="flex min-h-[20rem] items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-900">
+          {lastFramePath ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={lastFramePath}
+              src={artifactUrl(lastFramePath)}
+              alt="live browser frame"
+              className="max-h-[32rem] w-full object-contain"
+            />
+          ) : (
+            <p className="px-6 py-16 text-center text-sm text-zinc-400">
+              {live
+                ? "The agent will start driving the browser shortly — frames will appear here as it navigates, clicks, and types."
+                : "No browser frames were captured for this run."}
+            </p>
+          )}
+        </div>
+      </section>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
           <h2 className="mb-2 text-sm font-semibold text-zinc-700">Live timeline</h2>
@@ -85,7 +153,7 @@ export default function RunPage() {
           >
             {events.length === 0 && <p className="text-zinc-400">Waiting for events…</p>}
             <ul className="space-y-2">
-              {events.map((e) => (
+              {timelineEvents.map((e) => (
                 <li key={e.id} className="flex gap-2">
                   <span className="shrink-0 text-xs text-zinc-400">
                     {new Date(e.ts).toLocaleTimeString()}

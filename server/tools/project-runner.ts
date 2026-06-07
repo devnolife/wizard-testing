@@ -6,7 +6,7 @@ import { createServer } from "node:net";
 import type { RunContext } from "../orchestrator";
 
 /** Find an available TCP port on localhost by binding to port 0. */
-function findFreePort(): Promise<number> {
+export function findFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const srv = createServer();
     srv.unref();
@@ -27,7 +27,7 @@ export class AppUnavailableError extends Error {}
 
 type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
 
-function detectPackageManager(projectPath: string): PackageManager {
+export function detectPackageManager(projectPath: string): PackageManager {
   if (existsSync(join(projectPath, "pnpm-lock.yaml"))) return "pnpm";
   if (existsSync(join(projectPath, "yarn.lock"))) return "yarn";
   if (existsSync(join(projectPath, "bun.lockb"))) return "bun";
@@ -61,7 +61,7 @@ async function waitForHealthy(
   return false;
 }
 
-function parseUrlFromOutput(text: string): string | null {
+export function parseUrlFromOutput(text: string): string | null {
   const m = text.match(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i);
   return m ? m[0] : null;
 }
@@ -123,6 +123,7 @@ export class ProjectRunner {
     const logChunks: string[] = [];
 
     // Strip the wizard's own PORT/NODE_ENV; let the target's dev script pick its mode.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { PORT: _ignoredPort, NODE_ENV: _ignoredEnv, ...inheritedEnv } = process.env;
     const childEnv: Record<string, string | undefined> = {
       ...inheritedEnv,
