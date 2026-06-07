@@ -1,5 +1,5 @@
 import "server-only";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page, type CDPSession } from "playwright";
 import { createRequire } from "node:module";
 import { readFileSync, existsSync } from "node:fs";
 import { createServer } from "node:net";
@@ -49,6 +49,17 @@ function getFreePort(): Promise<number> {
     });
   });
 }
+
+/**
+ * Throttle gate for the live screencast: returns true when at least `minIntervalMs`
+ * has elapsed since the last forwarded frame. Pure (no I/O) so it is unit-testable.
+ */
+export function shouldEmitFrame(lastAt: number, now: number, minIntervalMs: number): boolean {
+  return now - lastAt >= minIntervalMs;
+}
+
+/** Minimum gap between forwarded screencast frames (~6–7 fps). */
+const SCREENCAST_MIN_INTERVAL_MS = 150;
 
 export interface A11yChecks {
   imagesMissingAlt: number;
@@ -136,6 +147,10 @@ export class BrowserController {
   private page: Page | null = null;
   private consoleErrors: string[] = [];
   private pageErrors: string[] = [];
+  private cdp: CDPSession | null = null;
+  private frameSink: ((jpeg: Buffer) => void) | null = null;
+  private screencastOn = false;
+  private lastFrameAt = 0;
 
   constructor(
     private baseUrl: string,
@@ -168,7 +183,77 @@ export class BrowserController {
       if (msg.type() === "error") this.consoleErrors.push(msg.text());
     });
     this.page.on("pageerror", (err) => this.pageErrors.push(err.message));
+    // Begin the live CDP screencast as soon as a page exists (fail-soft).
+    await this.startScreencast();
     return this.page;
+  }
+
+  /** Register the callback that receives live JPEG frames from the screencast. */
+  setFrameSink(cb: (jpeg: Buffer) => void): void {
+    this.frameSink = cb;
+  }
+
+  /** True while an event-driven CDP screencast is actively streaming frames. */
+  isScreencasting(): boolean {
+    return this.screencastOn;
+  }
+
+  /**
+   * Start a Chrome DevTools `Page.startScreencast`. Frames arrive on visual
+   * change (far smoother than polling) and are forwarded to the frame sink,
+   * throttled to ~6 fps. Fail-soft: on any error the screencast stays off so
+   * the runner's screenshot-poll fallback keeps the live view working.
+   */
+  private async startScreencast(): Promise<void> {
+    if (this.screencastOn || !this.frameSink || !this.page || !this.context) return;
+    try {
+      this.cdp = await this.context.newCDPSession(this.page);
+      this.cdp.on("Page.screencastFrame", (frame: { data: string; sessionId: number }) => {
+        // Always ack so Chrome keeps sending frames, even when we drop some.
+        this.cdp?.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {});
+        const now = Date.now();
+        if (!this.frameSink || !shouldEmitFrame(this.lastFrameAt, now, SCREENCAST_MIN_INTERVAL_MS)) {
+          return;
+        }
+        this.lastFrameAt = now;
+        try {
+          this.frameSink(Buffer.from(frame.data, "base64"));
+        } catch {
+          /* never let a sink error break the stream */
+        }
+      });
+      await this.cdp.send("Page.startScreencast", {
+        format: "jpeg",
+        quality: 60,
+        maxWidth: 1280,
+        maxHeight: 800,
+        everyNthFrame: 1,
+      });
+      this.screencastOn = true;
+    } catch {
+      this.screencastOn = false;
+      this.cdp = null;
+    }
+  }
+
+  /** Stop the CDP screencast and detach its session (best-effort). */
+  private async stopScreencast(): Promise<void> {
+    if (!this.cdp) {
+      this.screencastOn = false;
+      return;
+    }
+    try {
+      await this.cdp.send("Page.stopScreencast");
+    } catch {
+      /* ignore */
+    }
+    try {
+      await this.cdp.detach();
+    } catch {
+      /* ignore */
+    }
+    this.cdp = null;
+    this.screencastOn = false;
   }
 
   /** Persist the current context's cookies/localStorage to a storageState file. */
@@ -234,7 +319,12 @@ export class BrowserController {
   async liveSnapshot(): Promise<Buffer | null> {
     if (!this.page) return null;
     try {
-      return await this.page.screenshot({ fullPage: false, timeout: 5000 });
+      return await this.page.screenshot({
+        fullPage: false,
+        type: "jpeg",
+        quality: 60,
+        timeout: 5000,
+      });
     } catch {
       return null;
     }
@@ -583,6 +673,7 @@ export class BrowserController {
   }
 
   async close(): Promise<void> {
+    await this.stopScreencast();
     try {
       await this.browser?.close();
     } catch {

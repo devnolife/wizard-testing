@@ -123,7 +123,7 @@ export default function RunPage() {
       <section>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-zinc-700">Live browser view</h2>
-          <span className="text-xs text-zinc-400">{lastActionLabel ?? (live ? "waiting…" : "")}</span>
+          <span className="text-xs text-zinc-400">{lastActionLabel ?? (live ? "streaming…" : "")}</span>
         </div>
         <div className="flex min-h-[20rem] items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-900">
           {lastFramePath ? (

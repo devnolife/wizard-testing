@@ -21,7 +21,7 @@ export function writeScreenshot(runId: string, data: Buffer, label?: string): st
 }
 
 /** Number of files in the live-frame ring (bounds disk use for the screencast). */
-const LIVE_RING_SIZE = 8;
+const LIVE_RING_SIZE = 16;
 
 /**
  * Persist a transient live screencast frame into a small rotating ring so the
@@ -31,7 +31,7 @@ const LIVE_RING_SIZE = 8;
 export function writeLiveFrame(runId: string, data: Buffer, seq: number): string {
   const dir = join(runArtifactDir(runId), "live");
   mkdirSync(dir, { recursive: true });
-  const path = join(dir, `frame-${seq % LIVE_RING_SIZE}.png`);
+  const path = join(dir, `frame-${seq % LIVE_RING_SIZE}.jpg`);
   writeFileSync(path, data);
   return path;
 }

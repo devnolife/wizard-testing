@@ -242,8 +242,12 @@ export async function runPipeline(
     ctx.step("Agent is exploring and testing the app");
     const prompt = buildPrompt(run, baseUrl, guide, fw.framework, seedAccounts);
 
-    // Live screencast: stream a viewport frame on a timer so the dashboard's
-    // "Live browser view" updates continuously, not just on discrete actions.
+    // Live view: a CDP screencast (started lazily once a page exists) streams
+    // frames on every visual change — smooth motion while the agent navigates,
+    // clicks and types. The timer below is a slow heartbeat that keeps the view
+    // fresh during idle periods and is a fail-soft fallback if the screencast
+    // could not start.
+    browser.setFrameSink((frame) => ctx.liveFrame(frame));
     let capturing = false;
     const screencast = setInterval(() => {
       if (capturing || !browser || !browser.hasPage()) return;

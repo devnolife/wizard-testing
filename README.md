@@ -81,10 +81,11 @@ Then open the dashboard, click **New Run**, and provide:
   at a specific **seed file** to scan. Safe because the wizard only targets local projects.
 - **Save mode** — `ephemeral` (generated tests live in a temp dir) or save tests into the project.
 
-Live progress, findings, and screenshots stream into the run page. The **Live browser view**
-updates continuously (a frame roughly every 1.5s) while the agent drives the browser — so you
-can watch it navigate, click, and type in near real time — plus discrete frames on each action.
-History is kept across runs.
+Live progress, findings, and screenshots stream into the run page. The **Live browser view** is a
+real **CDP screencast** (Chrome DevTools `Page.startScreencast`): JPEG frames are pushed on every
+visual change — so you see smooth motion as the agent navigates, clicks, and types — throttled to
+~6 fps. A slow screenshot heartbeat (every 1.5s) keeps the view fresh during idle periods and acts
+as a fail-soft fallback if the screencast can't start. History is kept across runs.
 
 ### Accessibility & performance audits
 
