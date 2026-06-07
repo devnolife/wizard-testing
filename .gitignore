@@ -53,3 +53,6 @@ fixtures/**/tsconfig.json
 # Local server log (dev artifact)
 .server.log
 
+
+# Playwright test output in fixtures
+fixtures/**/test-results/

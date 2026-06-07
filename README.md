@@ -87,6 +87,20 @@ When the agent runs generated specs via `run_tests`, the wizard passes Playwrigh
 returns `{ passed, failed, flaky, skipped }`; when `flaky > 0` the agent raises a `PROCESS/minor`
 finding naming the unstable spec, so intermittent failures surface instead of hiding.
 
+### Framework-agnostic discovery
+
+`discover_app` is no longer Next.js-only. The wizard inspects the target project's
+`package.json` (dependencies + scripts) to **detect the framework** — Next.js, SvelteKit,
+Remix, Astro, Nuxt, Vite, or Create React App — and reports it (e.g. *"Detected nextjs:
+3 pages, 3 API routes"*). It maps UI routes and API handlers using each framework's
+conventions (Next App/Pages router, SvelteKit `+page`, Remix `routes/`, Astro `pages/`),
+and auto-selects the right dev script (`dev`, falling back to `start`).
+
+For client-rendered SPAs (e.g. plain Vite/CRA) where routes can't be derived from the file
+tree, discovery returns a `note` and the agent navigates to `/` and calls the **`list_links`**
+tool to crawl same-origin links dynamically — so route coverage degrades gracefully instead
+of failing.
+
 ### Export reports
 
 When a run finishes, use the **Export** buttons on the run page (or hit the API directly) to

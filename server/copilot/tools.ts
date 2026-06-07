@@ -48,12 +48,15 @@ export function buildTools(env: ToolEnv): Tool[] {
   return ([
     defineTool("discover_app", {
       description:
-        "Scan the target Next.js project and list its pages (UI routes) and API routes. Call this first to plan what to test.",
+        "Scan the target project and list its framework, pages (UI routes) and API routes. Works for Next.js, SvelteKit, Remix, Astro and Nuxt. Call this first to plan what to test. If it returns a `note` (e.g. for a client-rendered SPA), navigate to \"/\" and use list_links to discover routes.",
       parameters: { type: "object", properties: {}, additionalProperties: false },
       handler: () => {
         try {
           const map = discoverApp(env.projectPath);
-          ctx.tool("discover_app", `Found ${map.pages.length} pages, ${map.apiRoutes.length} API routes`);
+          ctx.tool(
+            "discover_app",
+            `Detected ${map.framework}: ${map.pages.length} pages, ${map.apiRoutes.length} API routes`,
+          );
           return ok(map);
         } catch (e) {
           return fail(e instanceof Error ? e.message : String(e));
@@ -174,6 +177,21 @@ export function buildTools(env: ToolEnv): Tool[] {
           const path = ctx.screenshot(shot, "snapshot");
           ctx.tool("browser_snapshot", `Snapshot of ${snap.url}`);
           return ok({ ...snap, screenshotPath: path });
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : String(e));
+        }
+      },
+    }),
+
+    defineTool("list_links", {
+      description:
+        "List same-origin internal link paths on the current page. Use to discover routes dynamically when discover_app couldn't map them statically (e.g. a client-rendered SPA): navigate to \"/\" first, then call this.",
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+      handler: async () => {
+        try {
+          const links = await browser.listLinks();
+          ctx.tool("list_links", `Found ${links.length} internal link(s)`);
+          return ok({ links });
         } catch (e) {
           return fail(e instanceof Error ? e.message : String(e));
         }
@@ -384,6 +402,7 @@ export const TOOL_NAMES = [
   "browser_click",
   "browser_fill",
   "browser_snapshot",
+  "list_links",
   "browser_login",
   "audit_page",
   "visual_check",

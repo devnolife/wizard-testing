@@ -5,6 +5,7 @@ import { listFindings } from "../store/db";
 import { ProjectRunner, AppUnavailableError } from "../tools/project-runner";
 import { BrowserController } from "../tools/browser";
 import { readTestingGuide, type TestingGuide } from "../tools/guide";
+import { detectFramework } from "../tools/codebase";
 import { sessionStatePath, hasFreshSession } from "../store/baselines";
 import { buildTools } from "./tools";
 import { createCopilotSession, disposeCopilot, type CopilotHandle } from "./session";
@@ -22,7 +23,12 @@ function activeScopes(run: Run): string[] {
   return s;
 }
 
-function buildPrompt(run: Run, baseUrl: string, guide: TestingGuide | null): string {
+function buildPrompt(
+  run: Run,
+  baseUrl: string,
+  guide: TestingGuide | null,
+  framework: string,
+): string {
   const scopes = activeScopes(run);
   const saveNote =
     run.saveMode === "project"
@@ -51,7 +57,7 @@ function buildPrompt(run: Run, baseUrl: string, guide: TestingGuide | null): str
       : [];
 
   return [
-    `You are an autonomous QA engineer testing a running full-stack Next.js app at ${baseUrl}.`,
+    `You are an autonomous QA engineer testing a running ${framework} web app at ${baseUrl}.`,
     `The project source is your working directory.`,
     ...guideSection,
     ...authSection,
@@ -60,7 +66,7 @@ function buildPrompt(run: Run, baseUrl: string, guide: TestingGuide | null): str
     ...scopes.map((s) => `- ${s}`),
     ``,
     `How to work:`,
-    `1. Call discover_app to list pages and API routes. Use read_file to understand key pages/handlers.`,
+    `1. Call discover_app to detect the framework and list pages and API routes. Use read_file to understand key pages/handlers. If discover_app returns a \`note\` (e.g. a client-rendered SPA), navigate to "/" with browser_goto then call list_links to discover routes.`,
     `2. For UI/UX: use browser_goto, browser_click, browser_fill, and browser_snapshot to explore real user flows. Inspect snapshot accessibility numbers and console/page errors.`,
     `3. For accessibility & performance: call audit_page on important pages to get axe-core WCAG violations and load metrics, and report the significant ones.`,
     `4. For visual stability: call visual_check (with the route as label) on key pages — it creates a baseline the first time and flags pixel regressions on later runs.`,
@@ -96,8 +102,19 @@ export async function runPipeline(
   let copilot: CopilotHandle | null = null;
 
   try {
+    const fw = detectFramework(run.projectPath);
+    ctx.step(
+      run.mode === "auto-start"
+        ? `Detected ${fw.framework} project (dev script: ${fw.devScript ?? "dev"})`
+        : `Detected ${fw.framework} project`,
+      { framework: fw.framework, devScript: fw.devScript },
+    );
     ctx.step("Ensuring the target app is running");
-    const baseUrl = await runner.ensureRunning({ mode: run.mode, url: run.url });
+    const baseUrl = await runner.ensureRunning({
+      mode: run.mode,
+      url: run.url,
+      script: fw.devScript ?? undefined,
+    });
 
     browser = new BrowserController(baseUrl, {
       headed: run.headed || process.env.WIZARD_HEADED === "1",
@@ -149,7 +166,7 @@ export async function runPipeline(
     }
 
     ctx.step("Agent is exploring and testing the app");
-    const prompt = buildPrompt(run, baseUrl, guide);
+    const prompt = buildPrompt(run, baseUrl, guide, fw.framework);
 
     // Live screencast: stream a viewport frame on a timer so the dashboard's
     // "Live browser view" updates continuously, not just on discrete actions.

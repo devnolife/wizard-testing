@@ -268,6 +268,32 @@ export class BrowserController {
   }
 
   /**
+   * Collect same-origin internal link paths from the current page. Used to
+   * discover routes dynamically when static route mapping isn't possible
+   * (e.g. client-rendered SPAs). Returns de-duplicated pathname[+search].
+   */
+  async listLinks(): Promise<string[]> {
+    const page = await this.ensurePage();
+    const links = await page.evaluate(() => {
+      const origin = location.origin;
+      const out = new Set<string>();
+      for (const a of Array.from(document.querySelectorAll("a[href]"))) {
+        const href = (a as HTMLAnchorElement).href;
+        try {
+          const u = new URL(href, origin);
+          if (u.origin !== origin) continue;
+          if (/^(mailto:|tel:|javascript:)/i.test(href)) continue;
+          out.add(u.pathname + (u.search || ""));
+        } catch {
+          /* ignore malformed href */
+        }
+      }
+      return Array.from(out);
+    });
+    return links.sort();
+  }
+
+  /**
    * Log into the target app. Navigates to the login page, fills the username
    * and password fields (auto-detecting them when selectors are not supplied),
    * submits, and waits for navigation. Subsequent browser actions reuse the
