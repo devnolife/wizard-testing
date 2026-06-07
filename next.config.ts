@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     "better-sqlite3",
     "playwright",
     "playwright-core",
+    "lighthouse",
   ],
 };
 

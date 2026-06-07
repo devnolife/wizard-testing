@@ -2,6 +2,7 @@ import "server-only";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { createRequire } from "node:module";
 import { readFileSync, existsSync } from "node:fs";
+import { createServer } from "node:net";
 import { join } from "node:path";
 import type { AuthConfig } from "@/lib/types";
 
@@ -28,6 +29,25 @@ function getAxeSource(): string {
     "utf8",
   );
   return cachedAxeSource;
+}
+
+/** Shape of the subset of the Lighthouse result (`lhr`) that we read. */
+interface LighthouseRunnerResult {
+  categories?: Record<string, { score?: number | null } | undefined>;
+  audits?: Record<string, { numericValue?: number | null } | undefined>;
+}
+
+/** Reserve an ephemeral free TCP port for Chrome's remote-debugging endpoint. */
+function getFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.once("error", reject);
+    srv.listen(0, "127.0.0.1", () => {
+      const addr = srv.address();
+      const port = typeof addr === "object" && addr ? addr.port : 0;
+      srv.close(() => resolve(port));
+    });
+  });
 }
 
 export interface A11yChecks {
@@ -68,6 +88,28 @@ export interface PerfMetrics {
   resourceCount: number;
   /** Total transferred bytes across resources. */
   transferBytes: number;
+}
+
+export interface LighthouseResult {
+  url: string;
+  /** False when Lighthouse/Chrome could not run; `reason` explains why. */
+  available: boolean;
+  reason?: string;
+  /** Category scores 0–100 (null when a category could not be scored). */
+  scores?: {
+    performance: number | null;
+    accessibility: number | null;
+    bestPractices: number | null;
+    seo: number | null;
+  };
+  /** Core Web Vitals / key timings in milliseconds (CLS is unitless). */
+  metrics?: {
+    firstContentfulPaint: number | null;
+    largestContentfulPaint: number | null;
+    totalBlockingTime: number | null;
+    cumulativeLayoutShift: number | null;
+    speedIndex: number | null;
+  };
 }
 
 export interface LoginResult {
@@ -441,6 +483,81 @@ export class BrowserController {
       };
     });
     return { url: page.url(), ...data };
+  }
+
+  /**
+   * Run a full Lighthouse audit against a URL. Launches its own isolated
+   * headless Chromium with a remote-debugging port and drives Lighthouse over
+   * CDP, so it never interferes with the live testing page. Lighthouse is a
+   * heavy ESM dependency loaded lazily via dynamic import; if it (or Chrome)
+   * fails for any reason, this resolves with `{ available: false, reason }`
+   * instead of throwing, so a missing/broken Lighthouse never fails a run.
+   */
+  async lighthouseAudit(path = "/"): Promise<LighthouseResult> {
+    const url = this.resolve(path);
+    let lhBrowser: Browser | null = null;
+    try {
+      const port = await getFreePort();
+      lhBrowser = await chromium.launch({
+        headless: true,
+        args: [`--remote-debugging-port=${port}`],
+      });
+      const { default: lighthouse } = (await import("lighthouse")) as unknown as {
+        default: (
+          url: string,
+          flags: Record<string, unknown>,
+        ) => Promise<{ lhr: LighthouseRunnerResult } | undefined>;
+      };
+      const result = await lighthouse(url, {
+        port,
+        output: "json",
+        logLevel: "error",
+        onlyCategories: ["performance", "accessibility", "best-practices", "seo"],
+      });
+      const lhr = result?.lhr;
+      if (!lhr) {
+        return { url, available: false, reason: "Lighthouse returned no result" };
+      }
+      const cat = lhr.categories ?? {};
+      const score = (key: string): number | null => {
+        const s = cat[key]?.score;
+        return typeof s === "number" ? Math.round(s * 100) : null;
+      };
+      const audits = lhr.audits ?? {};
+      const numeric = (key: string): number | null => {
+        const v = audits[key]?.numericValue;
+        return typeof v === "number" ? Math.round(v * 1000) / 1000 : null;
+      };
+      return {
+        url,
+        available: true,
+        scores: {
+          performance: score("performance"),
+          accessibility: score("accessibility"),
+          bestPractices: score("best-practices"),
+          seo: score("seo"),
+        },
+        metrics: {
+          firstContentfulPaint: numeric("first-contentful-paint"),
+          largestContentfulPaint: numeric("largest-contentful-paint"),
+          totalBlockingTime: numeric("total-blocking-time"),
+          cumulativeLayoutShift: numeric("cumulative-layout-shift"),
+          speedIndex: numeric("speed-index"),
+        },
+      };
+    } catch (e) {
+      return {
+        url,
+        available: false,
+        reason: e instanceof Error ? e.message : String(e),
+      };
+    } finally {
+      try {
+        await lhBrowser?.close();
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   async close(): Promise<void> {

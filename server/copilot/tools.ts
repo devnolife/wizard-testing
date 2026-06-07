@@ -253,6 +253,42 @@ export function buildTools(env: ToolEnv): Tool[] {
       },
     }),
 
+    defineTool("lighthouse_audit", {
+      description:
+        "Run a full Google Lighthouse audit on a page and return category scores (0–100) for performance, accessibility, best-practices and SEO, plus Core Web Vitals (FCP, LCP, TBT, CLS, Speed Index). Heavier than audit_page — use it once or twice on the most important page(s) to get authoritative scores. If a category scores low (e.g. performance < 80 or accessibility < 90), report a finding (category PERF or UX) citing the score and the worst metric. Resolves with { available: false } if Lighthouse/Chrome can't run — in that case fall back to audit_page.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: "Path to audit (e.g. \"/\" or \"/dashboard\"). Defaults to \"/\".",
+          },
+        },
+        additionalProperties: false,
+      },
+      handler: async (args: { path?: string }) => {
+        try {
+          const res = await browser.lighthouseAudit(args.path ?? "/");
+          if (res.available && res.scores) {
+            const s = res.scores;
+            ctx.tool(
+              "lighthouse_audit",
+              `Lighthouse ${res.url}: perf ${s.performance ?? "-"}, a11y ${s.accessibility ?? "-"}, best-practices ${s.bestPractices ?? "-"}, seo ${s.seo ?? "-"}`,
+              { scores: s },
+            );
+          } else {
+            ctx.tool(
+              "lighthouse_audit",
+              `Lighthouse unavailable for ${res.url}: ${res.reason ?? "unknown"}`,
+            );
+          }
+          return ok(res);
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : String(e));
+        }
+      },
+    }),
+
     defineTool("visual_check", {
       description:
         "Visual regression check for the current page. On first run for a route it saves a baseline screenshot; on later runs it compares against that baseline and reports the pixel mismatch ratio (with a diff image). Use after navigating to a page whose appearance should stay stable. Pass a stable `label` (e.g. the route path) to identify the baseline.",
@@ -405,6 +441,7 @@ export const TOOL_NAMES = [
   "list_links",
   "browser_login",
   "audit_page",
+  "lighthouse_audit",
   "visual_check",
   "report_finding",
   "write_test",

@@ -68,7 +68,7 @@ function buildPrompt(
     `How to work:`,
     `1. Call discover_app to detect the framework and list pages and API routes. Use read_file to understand key pages/handlers. If discover_app returns a \`note\` (e.g. a client-rendered SPA), navigate to "/" with browser_goto then call list_links to discover routes.`,
     `2. For UI/UX: use browser_goto, browser_click, browser_fill, and browser_snapshot to explore real user flows. Inspect snapshot accessibility numbers and console/page errors.`,
-    `3. For accessibility & performance: call audit_page on important pages to get axe-core WCAG violations and load metrics, and report the significant ones.`,
+    `3. For accessibility & performance: call audit_page on important pages to get axe-core WCAG violations and load metrics, and report the significant ones. For authoritative scores, call lighthouse_audit on the 1–2 most important pages — report a PERF or UX finding when performance < 80 or accessibility < 90, citing the score and worst metric.`,
     `4. For visual stability: call visual_check (with the route as label) on key pages — it creates a baseline the first time and flags pixel regressions on later runs.`,
     `5. For API: use http_request against the API routes; check status codes and error handling.`,
     `6. Whenever you find a problem OR confirm something important, call report_finding with an accurate category and severity. Use captureScreenshot for UI/UX issues.`,

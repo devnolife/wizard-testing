@@ -72,6 +72,18 @@ and runs a **WCAG 2 A/AA accessibility audit** plus lightweight **performance me
 (DOMContentLoaded, load, first contentful paint, TTFB, request count, transferred bytes).
 Violations are grouped by impact and used to back up UX/accessibility findings with hard data.
 
+### Full Lighthouse audit
+
+For authoritative scores the agent can call `lighthouse_audit({ path })`, which runs a complete
+[Google Lighthouse](https://github.com/GoogleChrome/lighthouse) audit and returns **category
+scores (0–100)** for performance, accessibility, best-practices and SEO, plus **Core Web Vitals**
+(First/Largest Contentful Paint, Total Blocking Time, Cumulative Layout Shift, Speed Index). It
+runs in an isolated headless Chromium (its own remote-debugging port) so it never disturbs the
+live testing page, and Lighthouse is loaded lazily via dynamic import. When a category scores low
+(performance < 80 or accessibility < 90) the agent raises a PERF/UX finding citing the score. The
+tool **fails soft** — if Lighthouse or Chrome can't run it returns `{ available: false, reason }`
+and the agent falls back to `audit_page`, so a run never breaks because of it.
+
 ### Visual regression
 
 The agent can call `visual_check({ label })` on key pages. The first time it sees a page it

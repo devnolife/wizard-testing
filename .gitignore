@@ -56,3 +56,9 @@ fixtures/**/tsconfig.json
 
 # Playwright test output in fixtures
 fixtures/**/test-results/
+
+# Temp commit message / scratch files
+.commitmsg.txt
+.*.cjs
+.*.mjs
+.lhcommit.txt
